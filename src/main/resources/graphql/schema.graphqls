@@ -1,0 +1,108 @@
+type Query {
+    buscarAlunoPorId(id: ID!): AlunoResponseDTO
+    buscarAlunoPorEmail(email: String!): AlunoResponseDTO
+    buscarAlunoPorNome(nome: String!): [AlunoResponseDTO]
+    listarTodosAlunos: [AlunoResponseDTO]
+
+    buscarProfessorPorId(id: ID!): ProfessorResponseDTO
+    buscarProfessorPorEmail(email: String!): ProfessorResponseDTO
+    listarProfessores: [ProfessorResponseDTO]
+
+    listarModulos: [ModuloResponseDTO]
+    buscarModuloPorId(id: ID!): ModuloResponseDTO
+    listarAulasPorModulo(moduloId: ID!): [AulaResponseDTO]
+    listar: [AulaResponseDTO]
+    listarExerciciosPorAula(aulaId: ID!): [ExercicioResponseDTO]
+}
+
+type Mutation {
+    cadastrarAluno(input: AlunoRequestDTO!): AlunoResponseDTO
+    editarAluno(id: ID!, nome: String, email: String, senha: String, nickname: String, dataNascimento: String): AlunoResponseDTO
+    deletarAluno(id: ID!): Boolean
+
+    cadastrarProfessor(input: ProfessorRequestDTO!): ProfessorResponseDTO
+    editarProfessor(id: ID!, nome: String, telefone: String, email: String): ProfessorResponseDTO
+    deletarProfessor(id: ID!): Boolean
+
+    criarModulo(input: ModuloRequestDTO!, professorId: ID!): ModuloResponseDTO
+    editarModulo(id: ID!, input: ModuloRequestDTO!): ModuloResponseDTO
+    deletarModulo(moduloId: ID!, professorId: ID!): Boolean
+
+    adicionarAula(input: AulaRequestDTO!): AulaResponseDTO
+    editarAula(id: ID!, input: AulaRequestDTO!, professorId: ID!): AulaResponseDTO
+    deletarAula(id: ID!): Boolean
+}
+
+type UserResponseDTO {
+    id: ID
+    nome: String
+    email: String
+    tipo: String
+}
+
+type AlunoResponseDTO {
+    id: ID
+        nickname: String
+    dataNascimento: String!
+    user: UserResponseDTO
+}
+
+type ProfessorResponseDTO {
+    id: ID
+    nome: String
+    telefone: String
+    user: UserResponseDTO
+}
+
+type ModuloResponseDTO {
+    id: ID
+    nome: String
+    descricao: String
+    ativo: Boolean
+    nomeProfessor: String
+}
+
+type AulaResponseDTO {
+    id: ID
+    titulo: String
+    descricao: String
+    ordem: Int
+    ativo: Boolean
+    moduloId: ID
+}
+
+type ExercicioResponseDTO {
+    id: ID
+    titulo: String
+    descricao: String
+}
+
+
+input AlunoRequestDTO {
+    nome: String!
+    email: String!
+    senha: String!
+    nickname: String!
+    dataNascimento: String!
+}
+
+input ProfessorRequestDTO {
+    nome: String!
+    email: String!
+    senha: String!
+    telefone: String!
+}
+
+input ModuloRequestDTO {
+    nome: String!
+    descricao: String
+    ativo: Boolean
+}
+
+input AulaRequestDTO {
+    titulo: String!
+    descricao: String!
+    ordem: Int!
+    moduloId: ID!
+    ativo: Boolean
+}

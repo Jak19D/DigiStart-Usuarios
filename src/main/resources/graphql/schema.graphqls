@@ -2,7 +2,7 @@ type Query {
     buscarAlunoPorId(id: ID!): AlunoResponseDTO
     buscarAlunoPorEmail(email: String!): AlunoResponseDTO
     buscarAlunoPorNome(nome: String!): [AlunoResponseDTO]
-    listarTodosAlunos: [AlunoResponseDTO]
+    listarAlunos: [AlunoResponseDTO]
 
     buscarProfessorPorId(id: ID!): ProfessorResponseDTO
     buscarProfessorPorEmail(email: String!): ProfessorResponseDTO
@@ -11,7 +11,7 @@ type Query {
     listarModulos: [ModuloResponseDTO]
     buscarModuloPorId(id: ID!): ModuloResponseDTO
     listarAulasPorModulo(moduloId: ID!): [AulaResponseDTO]
-    listar: [AulaResponseDTO]
+    listarAulas: [AulaResponseDTO]
     listarExerciciosPorAula(aulaId: ID!): [ExercicioResponseDTO]
 }
 
@@ -42,7 +42,7 @@ type UserResponseDTO {
 
 type AlunoResponseDTO {
     id: ID
-        nickname: String
+    nickname: String
     dataNascimento: String!
     user: UserResponseDTO
 }

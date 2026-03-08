@@ -44,7 +44,7 @@ public class AlunoGraphQLController {
     }
 
     @QueryMapping
-    public List<AlunoResponseDTO> listarTodosAlunos() {
+    public List<AlunoResponseDTO> listarAlunos() {
         var alunos = alunoService.listarTodos();
         return alunos.stream()
                 .map(alunoMapper::toResponseDTO)

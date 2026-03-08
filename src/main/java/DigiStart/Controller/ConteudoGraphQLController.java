@@ -7,11 +7,13 @@ import DigiStart.Mapper.AulaMapper;
 import DigiStart.Mapper.ExercicioMapper;
 import DigiStart.Mapper.ModuloMapper;
 import DigiStart.Model.Aula;
+import DigiStart.Model.Professor;
 import DigiStart.Service.AulaService;
 import DigiStart.Service.ExercicioService;
 import DigiStart.Service.ModuloService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.graphql.data.method.annotation.Argument;
+import org.springframework.graphql.data.method.annotation.MutationMapping;
 import org.springframework.graphql.data.method.annotation.QueryMapping;
 import org.springframework.stereotype.Controller;
 
@@ -61,7 +63,7 @@ public class ConteudoGraphQLController {
                 .toList();
     }
 
-    @QueryMapping List<Aula> listar(){
+    @QueryMapping List<Aula> listarAulas(){
         return aulaService.listar();
     }
 
@@ -71,5 +73,17 @@ public class ConteudoGraphQLController {
         return exercicios.stream()
                 .map(exercicioMapper::toResponseDTO)
                 .toList();
+    }
+
+    @MutationMapping
+    public AulaResponseDTO editarAula(@Argument Long id, @Argument String titulo, @Argument String descricao){
+        Aula aulaAtualizada = new Aula();
+        aulaAtualizada.setTitulo(titulo);
+        aulaAtualizada.setDescricao(descricao);
+        
+        Professor professorProprietario = null;
+        
+        var aula = aulaService.atualizar(id, aulaAtualizada, professorProprietario);
+        return aulaMapper.toResponseDTO(aula);
     }
 }

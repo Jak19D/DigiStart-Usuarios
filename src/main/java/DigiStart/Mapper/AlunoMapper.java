@@ -7,13 +7,16 @@ import org.mapstruct.*;
 
 @Mapper(componentModel = "spring", uses = {UserMapper.class})
 public interface AlunoMapper {
+    @Mapping(target = "moduloAtual", ignore = true)
     AlunoResponseDTO toResponseDTO(Aluno aluno);
 
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "user", ignore = true)
+    @Mapping(target = "progressoAulas", ignore = true)
     Aluno toEntity(AlunoRequestDTO dto);
 
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "user", ignore = true)
+    @Mapping(target = "progressoAulas", ignore = true)
     void updateEntityFromDTO(AlunoRequestDTO dto, @MappingTarget Aluno aluno);
 }

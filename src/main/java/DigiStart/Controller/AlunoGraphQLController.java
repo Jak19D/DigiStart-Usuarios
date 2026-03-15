@@ -2,13 +2,17 @@ package DigiStart.Controller;
 
 import DigiStart.DTO.Input.AlunoRequestDTO;
 import DigiStart.DTO.Output.AlunoResponseDTO;
+import DigiStart.DTO.Output.ModuloResponseDTO;
 import DigiStart.Mapper.AlunoMapper;
+import DigiStart.Mapper.ModuloMapper;
 import DigiStart.Service.AlunoService;
+import DigiStart.Service.ModuloService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.graphql.data.method.annotation.Argument;
 import org.springframework.graphql.data.method.annotation.MutationMapping;
 import org.springframework.graphql.data.method.annotation.QueryMapping;
+import org.springframework.graphql.data.method.annotation.SchemaMapping;
 import org.springframework.stereotype.Controller;
 
 import java.util.List;
@@ -22,6 +26,12 @@ public class AlunoGraphQLController {
     
     @Autowired
     private AlunoMapper alunoMapper;
+    
+    @Autowired
+    private ModuloMapper moduloMapper;
+    
+    @Autowired
+    private ModuloService moduloService;
 
     @QueryMapping
     public AlunoResponseDTO buscarAlunoPorId(@Argument Long id) {
@@ -67,6 +77,12 @@ public class AlunoGraphQLController {
     public boolean deletarAluno(@Argument Long id) {
         alunoService.deletar(id);
         return true;
+    }
+
+    @SchemaMapping(typeName = "AlunoResponseDTO", field = "moduloAtual")
+    public ModuloResponseDTO getModulo(AlunoResponseDTO aluno) {
+        var modulo = moduloService.buscarModuloDoAluno(aluno.getId());
+        return modulo != null ? moduloMapper.toResponseDTO(modulo) : null;
     }
 }
 

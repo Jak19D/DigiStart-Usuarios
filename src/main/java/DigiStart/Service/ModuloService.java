@@ -112,4 +112,9 @@ public class ModuloService {
         moduloRepository.save(modulo);
         return true;
     }
+
+    @Transactional
+    public Modulo buscarModuloDoAluno(Long alunoId) {
+        return moduloRepository.findModuloByAlunoId(alunoId).orElse(null);
+    }
 }

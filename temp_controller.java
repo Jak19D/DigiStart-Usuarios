@@ -1,16 +1,10 @@
 ﻿package DigiStart.Controller;
 
-import DigiStart.DTO.Input.AulaRequestDTO;
 import DigiStart.DTO.Input.ProfessorRequestDTO;
-import DigiStart.DTO.Input.ModuloRequestDTO;
-import DigiStart.DTO.Output.AulaResponseDTO;
 import DigiStart.DTO.Output.ProfessorResponseDTO;
-import DigiStart.DTO.Output.ModuloResponseDTO;
 import DigiStart.Mapper.ProfessorMapper;
-import DigiStart.Mapper.ModuloMapper;\nimport DigiStart.Mapper.AulaMapper;\nimport DigiStart.Model.Aula;
+\nimport DigiStart.Mapper.AulaMapper;\nimport DigiStart.Model.Aula;
 import DigiStart.Service.ProfessorService;
-import DigiStart.Service.ModuloService;
-import DigiStart.Service.AulaService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.graphql.data.method.annotation.Argument;

@@ -96,10 +96,7 @@ public class AlunoService {
         User novoUser = new User(nickname, email, senha, "ALUNO");
         User userSalvo = userService.criarNovoUser(novoUser);
 
-        Aluno novoAluno = new Aluno();
-        novoAluno.setUser(userSalvo);
-        novoAluno.setNickname(nickname);
-        novoAluno.setDataNascimento(dataNascimento);
+        Aluno novoAluno = new Aluno(userSalvo, nickname, dataNascimento);
 
         return alunoRepository.save(novoAluno);
     }

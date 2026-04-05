@@ -1,8 +1,13 @@
 package DigiStart.Service;
 
-import DigiStart.Exceptions.ValidacaoException; // Importação para erros de validação
+import DigiStart.Exceptions.ValidacaoException;
 import DigiStart.Model.User;
 import DigiStart.Repository.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -11,7 +16,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import java.util.Optional;
 
 @Service
-public class UserService {
+public class UserService implements UserDetailsService {
+    private static final Logger log = LoggerFactory.getLogger(UserService.class);
+    
     private final UserRepository repository;
     private final PasswordEncoder passwordEncoder;
 
@@ -20,7 +27,6 @@ public class UserService {
         this.repository = repository;
         this.passwordEncoder = passwordEncoder;
     }
-
 
     public void validarForcaSenha(String senha) {
         if (senha == null || senha.isEmpty()) {
@@ -45,11 +51,9 @@ public class UserService {
         }
     }
 
-
     public boolean existeEmail(String email) {
         return repository.existsByEmail(email);
     }
-
 
     // --- MÉTODOS DE CRUD ---
 
@@ -82,7 +86,6 @@ public class UserService {
         return null;
     }
 
-
     public List<User> listar() {
         return repository.findAll();
     }
@@ -99,5 +102,20 @@ public class UserService {
         User user = repository.findById(id).orElseThrow(() -> new ValidacaoException("Usuário não encontrado."));
         user.setAtivo(false);
         repository.save(user);
+    }
+
+    @Override
+    public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
+        log.info(">>> [UserService] Tentando carregar usuário com email: {}", email);
+
+        Optional<User> userOptional = repository.findByEmail(email);
+
+        if (userOptional.isPresent()) {
+            log.info(">>> [UserService] Usuário encontrado: {}", email);
+            return userOptional.get();
+        } else {
+            log.warn(">>> [UserService] Usuário NÃO encontrado com email: {}", email);
+            throw new UsernameNotFoundException("Usuário não encontrado com o e-mail: " + email);
+        }
     }
 }

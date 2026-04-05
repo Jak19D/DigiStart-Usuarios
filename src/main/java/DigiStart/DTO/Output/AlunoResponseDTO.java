@@ -13,5 +13,4 @@ public class AlunoResponseDTO {
     private String nickname;
     private String dataNascimento;
     private UserResponseDTO user;
-    private ModuloResponseDTO moduloAtual;
 }

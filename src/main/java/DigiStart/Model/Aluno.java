@@ -3,8 +3,6 @@ package DigiStart.Model;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.List;
 
 @Entity
 @Table(name = "alunos")
@@ -18,7 +16,6 @@ public class Aluno {
     @JoinColumn(name = "user_id", unique = true, nullable = false)
     private User user;
 
-
     @Column(unique = true, length = 15)
     @Size(min = 3, max = 15, message = "O Nickname deve ter entre 3 e 15 caracteres.")
     @NotBlank(message = "O Nickname é obrigatório.")
@@ -27,11 +24,6 @@ public class Aluno {
     @Column(nullable = false)
     private LocalDate dataNascimento;
 
-
-    @OneToMany(mappedBy = "aluno", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<ProgressoAula> progressoAulas = new ArrayList<>();
-
-    public Aluno() {}
 
     public Aluno(User user, String nickname, LocalDate dataNascimento) {
         this.user = user;
@@ -52,6 +44,4 @@ public class Aluno {
     public LocalDate getDataNascimento() { return dataNascimento; }
     public void setDataNascimento(LocalDate dataNascimento) { this.dataNascimento = dataNascimento; }
 
-    public List<ProgressoAula> getProgressoAulas() { return progressoAulas; }
-    public void setProgressoAulas(List<ProgressoAula> progressoAulas) { this.progressoAulas = progressoAulas; }
 }

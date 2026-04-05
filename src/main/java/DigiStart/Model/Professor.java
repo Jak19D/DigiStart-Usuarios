@@ -24,8 +24,6 @@ public class Professor {
 
     private String curriculoPath;
 
-    @OneToMany(mappedBy = "professor", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<Modulo> modulos = new ArrayList<>();
 
     public Professor() {}
 
@@ -52,8 +50,6 @@ public class Professor {
     public String getCurriculoPath() { return curriculoPath; }
     public void setCurriculoPath(String curriculoPath) { this.curriculoPath = curriculoPath; }
 
-    public List<Modulo> getModulos() { return modulos; }
-    public void setModulos(List<Modulo> modulos) { this.modulos = modulos; }
 
     @Override
     public String toString() {

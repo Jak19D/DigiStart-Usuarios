@@ -13,6 +13,11 @@ type Query {
     listarAulasPorModulo(moduloId: ID!): [AulaResponseDTO]
     listarAulas: [AulaResponseDTO]
     listarExerciciosPorAula(aulaId: ID!): [ExercicioResponseDTO]
+
+    buscarUserPorId(id: ID!): UserResponseDTO
+    buscarUserPorEmail(email: String!): UserResponseDTO
+    listarUsers: [UserResponseDTO]
+    listarUsersPorShard(shardNumber: Int!): [UserResponseDTO]
 }
 
 type Mutation {
@@ -31,6 +36,11 @@ type Mutation {
     adicionarAula(input: AulaRequestDTO!): AulaResponseDTO
     editarAula(id: ID!, input: AulaRequestDTO!, professorId: ID!): AulaResponseDTO
     deletarAula(id: ID!): Boolean
+
+    criarUser(input: UserRequestDTO!): UserResponseDTO
+    editarUser(id: ID!, input: UserRequestDTO!): UserResponseDTO
+    deletarUser(id: ID!): Boolean
+    inativarUser(id: ID!): UserResponseDTO
 }
 
 type UserResponseDTO {
@@ -38,6 +48,8 @@ type UserResponseDTO {
     nome: String
     email: String
     tipo: String
+    shardNumber: Int
+    ativo: Boolean
 }
 
 type AlunoResponseDTO {
@@ -106,5 +118,13 @@ input AulaRequestDTO {
     descricao: String!
     ordem: Int!
     moduloId: ID!
+    ativo: Boolean
+}
+
+input UserRequestDTO {
+    nome: String!
+    email: String!
+    senha: String!
+    tipo: String!
     ativo: Boolean
 }

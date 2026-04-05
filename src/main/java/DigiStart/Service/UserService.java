@@ -5,6 +5,8 @@ import DigiStart.Model.User;
 import DigiStart.Repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -13,7 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
-import java.util.Optional;
+import org.springframework.jdbc.core.RowMapper;
 
 @Service
 public class UserService implements UserDetailsService {
@@ -21,12 +23,37 @@ public class UserService implements UserDetailsService {
     
     private final UserRepository repository;
     private final PasswordEncoder passwordEncoder;
+    private final JdbcTemplate shard1JdbcTemplate;
+    private final JdbcTemplate shard2JdbcTemplate;
 
     @Autowired
-    public UserService(UserRepository repository, PasswordEncoder passwordEncoder) {
+    public UserService(UserRepository repository, PasswordEncoder passwordEncoder,
+                      @Qualifier("shard1JdbcTemplate") JdbcTemplate shard1JdbcTemplate,
+                      @Qualifier("shard2JdbcTemplate") JdbcTemplate shard2JdbcTemplate) {
         this.repository = repository;
         this.passwordEncoder = passwordEncoder;
+        this.shard1JdbcTemplate = shard1JdbcTemplate;
+        this.shard2JdbcTemplate = shard2JdbcTemplate;
     }
+
+    private JdbcTemplate getShardForId(Long id) {
+        return (id % 2 == 0) ? shard1JdbcTemplate : shard2JdbcTemplate;
+    }
+
+    private JdbcTemplate getShardForNewUser() {
+        return shard1JdbcTemplate;
+    }
+
+    private RowMapper<User> userRowMapper = (rs, rowNum) -> {
+        User user = new User();
+        user.setId(rs.getLong("id"));
+        user.setNome(rs.getString("nome"));
+        user.setEmail(rs.getString("email"));
+        user.setSenha(rs.getString("senha"));
+        user.setTipo(rs.getString("tipo"));
+        user.setAtivo(rs.getBoolean("ativo"));
+        return user;
+    };
 
     public void validarForcaSenha(String senha) {
         if (senha == null || senha.isEmpty()) {
@@ -52,14 +79,37 @@ public class UserService implements UserDetailsService {
     }
 
     public boolean existeEmail(String email) {
-        return repository.existsByEmail(email);
+        String sql = "SELECT COUNT(*) FROM tb_user WHERE email = ?";
+        Long count1 = shard1JdbcTemplate.queryForObject(sql, Long.class, email);
+        Long count2 = shard2JdbcTemplate.queryForObject(sql, Long.class, email);
+        return (count1 != null && count1 > 0) || (count2 != null && count2 > 0);
     }
 
     // --- MÉTODOS DE CRUD ---
 
     @Transactional
     public User salvar(User user) {
-        return repository.save(user);
+        if (user.getId() == null) {
+            String sql = "INSERT INTO tb_user (nome, email, senha, tipo, ativo) VALUES (?, ?, ?, ?, ?) RETURNING id";
+            Long id = getShardForNewUser().queryForObject(sql, Long.class,
+                    user.getNome(), user.getEmail(), user.getSenha(), user.getTipo(), user.isAtivo());
+            user.setId(id);
+            
+            if (id % 2 != 0) {
+                // Move para shard 2 se ID for ímpar
+                String deleteSql = "DELETE FROM tb_user WHERE id = ?";
+                getShardForId(id).update(deleteSql, id);
+                
+                String insertSql = "INSERT INTO tb_user (id, nome, email, senha, tipo, ativo) VALUES (?, ?, ?, ?, ?, ?)";
+                getShardForId(id).update(insertSql, id, user.getNome(), user.getEmail(), 
+                        user.getSenha(), user.getTipo(), user.isAtivo());
+            }
+        } else {
+            String sql = "UPDATE tb_user SET nome = ?, email = ?, senha = ?, tipo = ?, ativo = ? WHERE id = ?";
+            getShardForId(user.getId()).update(sql, user.getNome(), user.getEmail(), 
+                    user.getSenha(), user.getTipo(), user.isAtivo(), user.getId());
+        }
+        return user;
     }
 
     @Transactional
@@ -68,14 +118,19 @@ public class UserService implements UserDetailsService {
         String senhaCriptografada = passwordEncoder.encode(senhaPura);
         novoUser.setSenha(senhaCriptografada);
 
-        return repository.save(novoUser);
+        return salvar(novoUser);
     }
 
     public User autenticarUsuario(String email, String senhaPura) {
-        Optional<User> optionalUser = repository.findByEmail(email);
+        String sql = "SELECT * FROM tb_user WHERE email = ?";
+        List<User> users1 = shard1JdbcTemplate.query(sql, userRowMapper, email);
+        List<User> users2 = shard2JdbcTemplate.query(sql, userRowMapper, email);
+        
+        List<User> allUsers = new java.util.ArrayList<>();
+        allUsers.addAll(users1);
+        allUsers.addAll(users2);
 
-        if (optionalUser.isPresent()) {
-            User user = optionalUser.get();
+        for (User user : allUsers) {
             if (!user.isAtivo()) {
                 throw new ValidacaoException("Usuário inativo. Contacte o administrador.");
             }
@@ -87,35 +142,60 @@ public class UserService implements UserDetailsService {
     }
 
     public List<User> listar() {
-        return repository.findAll();
+        String sql = "SELECT * FROM tb_user";
+        List<User> users1 = shard1JdbcTemplate.query(sql, userRowMapper);
+        List<User> users2 = shard2JdbcTemplate.query(sql, userRowMapper);
+        
+        List<User> allUsers = new java.util.ArrayList<>();
+        allUsers.addAll(users1);
+        allUsers.addAll(users2);
+        return allUsers;
     }
 
     public User atualizar(Long id, User user) {
-        User existente = repository.findById(id).orElseThrow();
+        User existente = findById(id);
+        if (existente == null) {
+            throw new ValidacaoException("Usuário não encontrado.");
+        }
         existente.setEmail(user.getEmail());
         existente.setTipo(user.getTipo());
-        return repository.save(existente);
+        return salvar(existente);
     }
 
     @Transactional
     public void inativar(Long id) {
-        User user = repository.findById(id).orElseThrow(() -> new ValidacaoException("Usuário não encontrado."));
+        User user = findById(id);
+        if (user == null) {
+            throw new ValidacaoException("Usuário não encontrado.");
+        }
         user.setAtivo(false);
-        repository.save(user);
+        salvar(user);
     }
 
     @Override
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
         log.info(">>> [UserService] Tentando carregar usuário com email: {}", email);
 
-        Optional<User> userOptional = repository.findByEmail(email);
+        String sql = "SELECT * FROM tb_user WHERE email = ?";
+        List<User> users1 = shard1JdbcTemplate.query(sql, userRowMapper, email);
+        List<User> users2 = shard2JdbcTemplate.query(sql, userRowMapper, email);
+        
+        List<User> allUsers = new java.util.ArrayList<>();
+        allUsers.addAll(users1);
+        allUsers.addAll(users2);
 
-        if (userOptional.isPresent()) {
+        if (!allUsers.isEmpty()) {
             log.info(">>> [UserService] Usuário encontrado: {}", email);
-            return userOptional.get();
+            return allUsers.get(0);
         } else {
             log.warn(">>> [UserService] Usuário NÃO encontrado com email: {}", email);
             throw new UsernameNotFoundException("Usuário não encontrado com o e-mail: " + email);
         }
+    }
+
+    public User findById(Long id) {
+        String sql = "SELECT * FROM tb_user WHERE id = ?";
+        List<User> users = getShardForId(id).query(sql, userRowMapper, id);
+        return users.isEmpty() ? null : users.get(0);
     }
 }

@@ -10,6 +10,7 @@ import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
 import org.springframework.boot.orm.jpa.EntityManagerFactoryBuilder;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import javax.sql.DataSource;
 
@@ -63,5 +64,16 @@ public class ShardJpaConfig {
     public PlatformTransactionManager shard2TransactionManager(
             @Qualifier("shard2EntityManagerFactory") LocalContainerEntityManagerFactoryBean entityManagerFactory) {
         return new JpaTransactionManager(entityManagerFactory.getObject());
+    }
+
+    @Primary
+    @Bean(name = "shard1JdbcTemplate")
+    public JdbcTemplate shard1JdbcTemplate(@Qualifier("shard1DataSource") DataSource dataSource) {
+        return new JdbcTemplate(dataSource);
+    }
+
+    @Bean(name = "shard2JdbcTemplate")
+    public JdbcTemplate shard2JdbcTemplate(@Qualifier("shard2DataSource") DataSource dataSource) {
+        return new JdbcTemplate(dataSource);
     }
 }

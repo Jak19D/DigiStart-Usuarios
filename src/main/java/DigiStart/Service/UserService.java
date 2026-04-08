@@ -5,6 +5,7 @@ import DigiStart.Model.User;
 import DigiStart.Repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -14,7 +15,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.RowMapper;
 
 @Service
@@ -25,15 +25,18 @@ public class UserService implements UserDetailsService {
     private final PasswordEncoder passwordEncoder;
     private final JdbcTemplate shard1JdbcTemplate;
     private final JdbcTemplate shard2JdbcTemplate;
+    private final RabbitMQService rabbitMQService;
 
     @Autowired
     public UserService(UserRepository repository, PasswordEncoder passwordEncoder,
                       @Qualifier("shard1JdbcTemplate") JdbcTemplate shard1JdbcTemplate,
-                      @Qualifier("shard2JdbcTemplate") JdbcTemplate shard2JdbcTemplate) {
+                      @Qualifier("shard2JdbcTemplate") JdbcTemplate shard2JdbcTemplate,
+                      RabbitMQService rabbitMQService) {
         this.repository = repository;
         this.passwordEncoder = passwordEncoder;
         this.shard1JdbcTemplate = shard1JdbcTemplate;
         this.shard2JdbcTemplate = shard2JdbcTemplate;
+        this.rabbitMQService = rabbitMQService;
     }
 
     private JdbcTemplate getShardForId(Long id) {
@@ -96,7 +99,6 @@ public class UserService implements UserDetailsService {
             user.setId(id);
             
             if (id % 2 != 0) {
-                // Move para shard 2 se ID for ímpar
                 String deleteSql = "DELETE FROM tb_user WHERE id = ?";
                 getShardForId(id).update(deleteSql, id);
                 
@@ -118,7 +120,13 @@ public class UserService implements UserDetailsService {
         String senhaCriptografada = passwordEncoder.encode(senhaPura);
         novoUser.setSenha(senhaCriptografada);
 
-        return salvar(novoUser);
+        User userSalvo = salvar(novoUser);
+        
+        // Enviar mensagem para RabbitMQ
+        rabbitMQService.sendUserCreatedMessage(userSalvo);
+        rabbitMQService.sendContentSyncMessage(userSalvo.getId(), "CREATED");
+        
+        return userSalvo;
     }
 
     public User autenticarUsuario(String email, String senhaPura) {

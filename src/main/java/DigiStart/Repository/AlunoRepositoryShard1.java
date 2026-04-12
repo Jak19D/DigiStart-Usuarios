@@ -1,6 +1,7 @@
 package DigiStart.Repository;
 
 import DigiStart.Model.Aluno;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -10,7 +11,7 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface AlunoRepository extends JpaRepository<Aluno, Long> {
+public interface AlunoRepositoryShard1 extends JpaRepository<Aluno, Long> {
 
     Optional<Aluno> findByUserId(Long userId);
 

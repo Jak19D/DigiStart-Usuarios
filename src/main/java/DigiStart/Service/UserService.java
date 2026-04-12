@@ -1,8 +1,11 @@
 package DigiStart.Service;
 
+import DigiStart.DTO.Input.UserRequestDTO;
 import DigiStart.Exceptions.ValidacaoException;
+import DigiStart.Mapper.UserMapper;
 import DigiStart.Model.User;
-import DigiStart.Repository.UserRepository;
+import DigiStart.Repository.UserRepositoryShard1;
+import DigiStart.Repository.UserRepositoryShard2;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,30 +24,39 @@ import org.springframework.jdbc.core.RowMapper;
 public class UserService implements UserDetailsService {
     private static final Logger log = LoggerFactory.getLogger(UserService.class);
     
-    private final UserRepository repository;
+    private final UserRepositoryShard1 userRepositoryShard1;
+    private final UserRepositoryShard2 userRepositoryShard2;
     private final PasswordEncoder passwordEncoder;
     private final JdbcTemplate shard1JdbcTemplate;
     private final JdbcTemplate shard2JdbcTemplate;
     private final RabbitMQService rabbitMQService;
+    private final ShardRoutingService shardRoutingService;
+    private final UserMapper userMapper;
 
     @Autowired
-    public UserService(UserRepository repository, PasswordEncoder passwordEncoder,
+    public UserService(UserRepositoryShard1 userRepositoryShard1, 
+                     UserRepositoryShard2 userRepositoryShard2, PasswordEncoder passwordEncoder,
                       @Qualifier("shard1JdbcTemplate") JdbcTemplate shard1JdbcTemplate,
                       @Qualifier("shard2JdbcTemplate") JdbcTemplate shard2JdbcTemplate,
-                      RabbitMQService rabbitMQService) {
-        this.repository = repository;
+                      RabbitMQService rabbitMQService, ShardRoutingService shardRoutingService,
+                      UserMapper userMapper) {
+        this.userRepositoryShard1 = userRepositoryShard1;
+        this.userRepositoryShard2 = userRepositoryShard2;
         this.passwordEncoder = passwordEncoder;
         this.shard1JdbcTemplate = shard1JdbcTemplate;
         this.shard2JdbcTemplate = shard2JdbcTemplate;
         this.rabbitMQService = rabbitMQService;
+        this.shardRoutingService = shardRoutingService;
+        this.userMapper = userMapper;
     }
 
     private JdbcTemplate getShardForId(Long id) {
         return (id % 2 == 0) ? shard1JdbcTemplate : shard2JdbcTemplate;
     }
 
-    private JdbcTemplate getShardForNewUser() {
-        return shard1JdbcTemplate;
+    private JdbcTemplate getShardForNewUser(String email) {
+        int shard = shardRoutingService.determinarShardPorHash(email);
+        return shard == 1 ? shard1JdbcTemplate : shard2JdbcTemplate;
     }
 
     private RowMapper<User> userRowMapper = (rs, rowNum) -> {
@@ -94,7 +106,7 @@ public class UserService implements UserDetailsService {
     public User salvar(User user) {
         if (user.getId() == null) {
             String sql = "INSERT INTO tb_user (nome, email, senha, tipo, ativo) VALUES (?, ?, ?, ?, ?) RETURNING id";
-            Long id = getShardForNewUser().queryForObject(sql, Long.class,
+            Long id = getShardForNewUser(user.getEmail()).queryForObject(sql, Long.class,
                     user.getNome(), user.getEmail(), user.getSenha(), user.getTipo(), user.isAtivo());
             user.setId(id);
             
@@ -114,6 +126,7 @@ public class UserService implements UserDetailsService {
         return user;
     }
 
+
     @Transactional
     public User criarNovoUser(User novoUser) {
         String senhaPura = novoUser.getSenha();
@@ -122,7 +135,6 @@ public class UserService implements UserDetailsService {
 
         User userSalvo = salvar(novoUser);
         
-        // Enviar mensagem para RabbitMQ
         rabbitMQService.sendUserCreatedMessage(userSalvo);
         rabbitMQService.sendContentSyncMessage(userSalvo.getId(), "CREATED");
         

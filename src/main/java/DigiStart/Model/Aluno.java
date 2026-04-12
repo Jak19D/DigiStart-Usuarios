@@ -21,9 +21,11 @@ public class Aluno {
     @NotBlank(message = "O Nickname é obrigatório.")
     private String nickname;
 
-    @Column(nullable = false)
+    @Column(name = "data_nascimento", nullable = false)
     private LocalDate dataNascimento;
 
+
+    public Aluno() {}
 
     public Aluno(User user, String nickname, LocalDate dataNascimento) {
         this.user = user;

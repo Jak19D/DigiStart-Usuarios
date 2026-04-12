@@ -3,185 +3,157 @@ package DigiStart.Service;
 import DigiStart.DTO.Input.AlunoRequestDTO;
 import DigiStart.Exceptions.RecursoNaoEncontrado;
 import DigiStart.Exceptions.ValidacaoException;
+import DigiStart.Mapper.AlunoMapper;
 import DigiStart.Model.Aluno;
 import DigiStart.Model.User;
-import DigiStart.Repository.AlunoRepository;
-import DigiStart.Mapper.AlunoMapper;
+import DigiStart.Repository.AlunoRepositoryShard1;
+import DigiStart.Repository.AlunoRepositoryShard2;
+import DigiStart.Service.ShardRoutingService;
+import DigiStart.Service.ValidationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
-import java.time.Period;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.util.regex.Pattern;
 
 @Service
 public class AlunoService {
 
-    private final AlunoRepository alunoRepository;
+    private final AlunoRepositoryShard1 alunoRepositoryShard1;
+    private final AlunoRepositoryShard2 alunoRepositoryShard2;
     private final UserService userService;
+    private final ShardRoutingService shardRoutingService;
+    private final ValidationService validationService;
     private final AlunoMapper alunoMapper;
 
     @Autowired
-    public AlunoService(AlunoRepository alunoRepository, UserService userService, AlunoMapper alunoMapper) {
-        this.alunoRepository = alunoRepository;
+    public AlunoService(AlunoRepositoryShard1 alunoRepositoryShard1, 
+                       AlunoRepositoryShard2 alunoRepositoryShard2, UserService userService, 
+                       ShardRoutingService shardRoutingService, ValidationService validationService,
+                       AlunoMapper alunoMapper) {
+        this.alunoRepositoryShard1 = alunoRepositoryShard1;
+        this.alunoRepositoryShard2 = alunoRepositoryShard2;
         this.userService = userService;
+        this.shardRoutingService = shardRoutingService;
+        this.validationService = validationService;
         this.alunoMapper = alunoMapper;
     }
 
 
     public List<Aluno> listarTodos() {
-        return alunoRepository.findAll();
+        List<Aluno> todosAlunos = new java.util.ArrayList<>();
+        todosAlunos.addAll(alunoRepositoryShard1.findAll());
+        todosAlunos.addAll(alunoRepositoryShard2.findAll());
+        
+        // Remover duplicados baseado no ID
+        return todosAlunos.stream()
+                .collect(java.util.stream.Collectors.toMap(
+                    Aluno::getId, 
+                    aluno -> aluno, 
+                    (existing, replacement) -> existing))
+                .values()
+                .stream()
+                .toList();
     }
 
     public List<Aluno> buscarPorNome(String nome) {
-        List<Aluno> alunos = alunoRepository.buscarPorNomeOuEmail(nome);
-        return alunos;
+        List<Aluno> alunos = new java.util.ArrayList<>();
+        alunos.addAll(alunoRepositoryShard1.buscarPorNomeOuEmail(nome));
+        alunos.addAll(alunoRepositoryShard2.buscarPorNomeOuEmail(nome));
+        
+        // Remover duplicados baseado no ID
+        return alunos.stream()
+                .collect(java.util.stream.Collectors.toMap(
+                    Aluno::getId, 
+                    aluno -> aluno, 
+                    (existing, replacement) -> existing))
+                .values()
+                .stream()
+                .toList();
     }
 
     public Aluno buscarPorId(Long alunoId) {
-        return alunoRepository.findById(alunoId)
+        return alunoRepositoryShard1.findById(alunoId)
+                .or(() -> alunoRepositoryShard2.findById(alunoId))
                 .orElseThrow(() -> new RecursoNaoEncontrado("Aluno não encontrado com ID: " + alunoId));
     }
 
     public Aluno buscarPorEmail(String email) {
-        return alunoRepository.findByUserEmail(email)
+        return alunoRepositoryShard1.findByUserEmail(email)
+                .or(() -> alunoRepositoryShard2.findByUserEmail(email))
                 .orElseThrow(() -> new RecursoNaoEncontrado("Aluno não encontrado com email: " + email));
     }
 
     public Aluno findByUserId(Long userId) {
-        return alunoRepository.findByUserId(userId)
+        return alunoRepositoryShard1.findByUserId(userId)
+                .or(() -> alunoRepositoryShard2.findByUserId(userId))
                 .orElseThrow(() -> new RecursoNaoEncontrado("Aluno não encontrado para o User ID: " + userId));
     }
 
 
-    @Transactional
-    public Aluno salvar(AlunoRequestDTO dto) {
-        LocalDate data;
-
-        try {
-            DateTimeFormatter formatador = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-            data = LocalDate.parse(dto.getDataNascimento(), formatador);
-        } catch (Exception e) {
-            throw new ValidacaoException("Formato de data inválido no JSON. Use DD/MM/AAAA.");
-        }
-
-        return cadastrarAluno(
-                dto.getEmail(),
-                dto.getSenha(),
-                dto.getNickname(),
-                data
-        );
-    }
-
+    
     @Transactional
     public Aluno cadastrarAluno(String email, String senha, String nickname, LocalDate dataNascimento) {
         if (email == null || email.isEmpty() || nickname == null || nickname.isEmpty() || dataNascimento == null) {
             throw new ValidacaoException("Certifique-se de que todos os campos obrigatórios estejam preenchidos.");
         }
 
-        validarNickname(nickname);
-        validarDataNascimento(dataNascimento);
-        validarIdadeMinima(dataNascimento);
-        validarDominioEmail(email);
+        validationService.validarNickname(nickname);
+        validationService.validarDataNascimento(dataNascimento);
+        validationService.validarIdadeMinimaAluno(dataNascimento);
+        validationService.validarDominioEmail(email);
 
         if (userService.existeEmail(email)) {
             throw new ValidacaoException("Este email já está em uso.");
         }
 
-        userService.validarForcaSenha(senha);
+        validationService.validarForcaSenha(senha);
 
         User novoUser = new User(nickname, email, senha, "ALUNO");
         User userSalvo = userService.criarNovoUser(novoUser);
 
         Aluno novoAluno = new Aluno(userSalvo, nickname, dataNascimento);
 
-        return alunoRepository.save(novoAluno);
-    }
-
-
-    @Transactional
-    public Aluno editar(Long id, AlunoRequestDTO dto) {
-        Aluno alunoExistente = buscarPorId(id);
+        Aluno alunoSalvoShard1 = alunoRepositoryShard1.save(novoAluno);
+        Aluno alunoSalvoShard2 = alunoRepositoryShard2.save(novoAluno);
         
-        try {
-            LocalDate data = LocalDate.parse(dto.getDataNascimento());
-            
-            if (dto.getNickname() != null && !dto.getNickname().isEmpty()) {
-                if (!dto.getNickname().equals(alunoExistente.getNickname())) {
-                    validarNickname(dto.getNickname());
-                }
-            }
-            
-            if (dto.getDataNascimento() != null && !dto.getDataNascimento().isEmpty()) {
-                validarDataNascimento(data);
-                validarIdadeMinima(data);
-            }
-            
-            if (dto.getEmail() != null && !dto.getEmail().isEmpty()) {
-                if (!dto.getEmail().equals(alunoExistente.getUser().getEmail())) {
-                    validarDominioEmail(dto.getEmail());
-                    if (!dto.getEmail().equals(alunoExistente.getUser().getEmail()) && userService.existeEmail(dto.getEmail())) {
-                        throw new ValidacaoException("Este email já está em uso.");
-                    }
-                }
-            }
-            
-            if (dto.getSenha() != null && !dto.getSenha().isEmpty()) {
-                userService.validarForcaSenha(dto.getSenha());
-            }
-            
-            alunoMapper.updateEntityFromDTO(dto, alunoExistente);
-            
-            return alunoRepository.save(alunoExistente);
-            
-        } catch (Exception e) {
-            throw new ValidacaoException("Formato de data inválido. Use AAAA-MM-DD.");
+        int shardCorreto = shardRoutingService.determinarShardPorId(alunoSalvoShard1.getId());
+        
+        if (shardCorreto == 1) {
+            alunoRepositoryShard2.delete(alunoSalvoShard2);
+            return alunoSalvoShard1;
+        } else {
+            alunoRepositoryShard1.delete(alunoSalvoShard1);
+            return alunoSalvoShard2;
         }
     }
 
+    
     @Transactional
     public void deletar(Long id) {
         Aluno aluno = buscarPorId(id);
-        alunoRepository.delete(aluno);
-    }
-
-    private void validarDominioEmail(String email) {
-        String emailPattern = "^[a-zA-Z0-9._%+-]+@(gmail\\.com|email\\.com)$";
-        if (!Pattern.compile(emailPattern, Pattern.CASE_INSENSITIVE).matcher(email).matches()) {
-            throw new ValidacaoException("E-mail inválido. O domínio deve ser @gmail.com ou @email.com.");
-        }
-    }
-
-    private void validarDataNascimento(LocalDate dataNascimento) {
-        if (dataNascimento.isAfter(LocalDate.now())) {
-            throw new ValidacaoException("A data de nascimento não pode ser uma data futura.");
-        }
-        if (Period.between(dataNascimento, LocalDate.now()).getYears() > 120) {
-            throw new ValidacaoException("A data de nascimento é inválida (limite de 120 anos).");
-        }
-    }
-
-    private void validarIdadeMinima(LocalDate dataNascimento) {
-        if (Period.between(dataNascimento, LocalDate.now()).getYears() < 10) {
-            throw new ValidacaoException("Você precisa ter 10 anos ou mais para se cadastrar.");
+        int shard = shardRoutingService.determinarShardPorId(aluno.getId());
+        
+        if (shard == 1) {
+            alunoRepositoryShard1.delete(aluno);
+        } else {
+            alunoRepositoryShard2.delete(aluno);
         }
     }
 
     private void validarNickname(String nickname) {
-        if (nickname.length() < 3 || nickname.length() > 15) {
-            throw new ValidacaoException("O Nickname deve ter entre 3 e 15 caracteres.");
-        }
-        if (alunoRepository.findByNickname(nickname).isPresent()) {
+        if (alunoRepositoryShard1.findByNickname(nickname).isPresent() ||
+            alunoRepositoryShard2.findByNickname(nickname).isPresent()) {
             throw new ValidacaoException("Este nickname já está cadastrado.");
         }
     }
 
     @Transactional
     public Aluno atualizarPerfil(Long alunoId, String nome, String email, String senha, String nickname, String dataNascimento) {
-        Aluno aluno = alunoRepository.findById(alunoId)
+        Aluno aluno = alunoRepositoryShard1.findById(alunoId)
+                .or(() -> alunoRepositoryShard2.findById(alunoId))
                 .orElseThrow(() -> new RecursoNaoEncontrado("Aluno não encontrado para o ID: " + alunoId));
 
         User user = aluno.getUser();
@@ -191,7 +163,7 @@ public class AlunoService {
         }
 
         if (email != null && !email.isEmpty() && !email.equals(user.getEmail())) {
-            validarDominioEmail(email);
+            validationService.validarDominioEmail(email);
             if (userService.existeEmail(email)) {
                 throw new ValidacaoException("Este email já está em uso.");
             }
@@ -199,11 +171,12 @@ public class AlunoService {
         }
 
         if (senha != null && !senha.isEmpty()) {
-            userService.validarForcaSenha(senha);
+            validationService.validarForcaSenha(senha);
             user.setSenha(senha);
         }
 
         if (nickname != null && !nickname.isEmpty() && !nickname.equals(aluno.getNickname())) {
+            validationService.validarNickname(nickname);
             validarNickname(nickname);
             aluno.setNickname(nickname);
         }
@@ -212,8 +185,8 @@ public class AlunoService {
             try {
                 DateTimeFormatter formatador = DateTimeFormatter.ofPattern("dd/MM/yyyy");
                 LocalDate data = LocalDate.parse(dataNascimento, formatador);
-                validarDataNascimento(data);
-                validarIdadeMinima(data);
+                validationService.validarDataNascimento(data);
+                validationService.validarIdadeMinimaAluno(data);
                 aluno.setDataNascimento(data);
             } catch (Exception e) {
                 throw new ValidacaoException("Formato de data inválido. Use DD/MM/AAAA.");
@@ -222,6 +195,12 @@ public class AlunoService {
 
         userService.salvar(user);
         
-        return alunoRepository.save(aluno);
+        int shard = shardRoutingService.determinarShardPorId(aluno.getId());
+        
+        if (shard == 1) {
+            return alunoRepositoryShard1.save(aluno);
+        } else {
+            return alunoRepositoryShard2.save(aluno);
+        }
     }
 }

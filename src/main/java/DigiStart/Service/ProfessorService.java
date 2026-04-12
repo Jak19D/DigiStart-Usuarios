@@ -1,60 +1,41 @@
 package DigiStart.Service;
 
+import DigiStart.DTO.Input.ProfessorRequestDTO;
 import DigiStart.Exceptions.RecursoNaoEncontrado;
 import DigiStart.Exceptions.ValidacaoException;
+import DigiStart.Mapper.ProfessorMapper;
 import DigiStart.Model.Professor;
 import DigiStart.Model.User;
-import DigiStart.Repository.ProfessorRepository;
-import DigiStart.DTO.Input.ProfessorRequestDTO;
-import DigiStart.Mapper.ProfessorMapper;
+import DigiStart.Repository.ProfessorRepositoryShard1;
+import DigiStart.Repository.ProfessorRepositoryShard2;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import java.util.List;
-import java.util.regex.Pattern;
 
 @Service
 public class ProfessorService {
 
-    private final ProfessorRepository professorRepository;
+    private final ProfessorRepositoryShard1 professorRepositoryShard1;
+    private final ProfessorRepositoryShard2 professorRepositoryShard2;
     private final UserService userService;
+    private final ShardRoutingService shardRoutingService;
+    private final ValidationService validationService;
     private final ProfessorMapper professorMapper;
 
     @Autowired
-    public ProfessorService(ProfessorRepository professorRepository, UserService userService, ProfessorMapper professorMapper) {
-        this.professorRepository = professorRepository;
+    public ProfessorService(ProfessorRepositoryShard1 professorRepositoryShard1,
+                          ProfessorRepositoryShard2 professorRepositoryShard2, UserService userService, 
+                          ShardRoutingService shardRoutingService, ValidationService validationService,
+                          ProfessorMapper professorMapper) {
+        this.professorRepositoryShard1 = professorRepositoryShard1;
+        this.professorRepositoryShard2 = professorRepositoryShard2;
         this.userService = userService;
+        this.shardRoutingService = shardRoutingService;
+        this.validationService = validationService;
         this.professorMapper = professorMapper;
     }
-
-
-    private void validarDominioEmail(String email) {
-        String emailPattern = "^[a-zA-Z0-9._%+-]+@(gmail\\.com|email\\.com)$";
-        if (!Pattern.compile(emailPattern, Pattern.CASE_INSENSITIVE).matcher(email).matches()) {
-            throw new ValidacaoException("E-mail inválido. O domínio deve ser estritamente @gmail.com ou @email.com.");
-        }
-    }
-
-    private void validarNome(String nome) {
-        if (nome == null || nome.length() < 3) {
-            throw new ValidacaoException("O nome completo deve ter no mínimo 3 caracteres.");
-        }
-        if (nome.length() > 150) {
-            throw new ValidacaoException("O nome completo inserido ultrapassa o limite de 150 caracteres.");
-        }
-    }
-
-    private String validarECaminhoCurriculo(MultipartFile curriculo) {
-        if (curriculo == null || curriculo.isEmpty()) {
-            throw new ValidacaoException("O currículo em PDF é obrigatório.");
-        }
-        if (!"application/pdf".equals(curriculo.getContentType())) {
-            throw new ValidacaoException("Só são aceitos arquivos no formato PDF.");
-        }
-        return "/storage/curriculos/" + curriculo.getOriginalFilename();
-    }
-
 
 
     @Transactional
@@ -68,13 +49,14 @@ public class ProfessorService {
         if (nome == null || nome.isEmpty() || email == null || email.isEmpty() || telefone == null || telefone.isEmpty() || senha == null || senha.isEmpty()) {
             throw new ValidacaoException("Certifique-se de que todos os campos obrigatórios estejam preenchidos.");
         }
-        validarNome(nome);
-        validarDominioEmail(email);
+        validationService.validarNomeProfessor(nome);
+        validationService.validarDominioEmail(email);
         if (userService.existeEmail(email)) {
             throw new ValidacaoException("Este email já está em uso.");
         }
-        userService.validarForcaSenha(senha);
-        String caminhoCurriculo = validarECaminhoCurriculo(curriculo);
+        validationService.validarForcaSenha(senha);
+        validationService.validarECaminhoCurriculo(curriculo);
+        String caminhoCurriculo = validationService.getCaminhoCurriculo(curriculo);
 
         try {
             User novoUser = new User(nome, email, senha, "PROFESSOR");
@@ -88,7 +70,18 @@ public class ProfessorService {
 
             System.out.println("LOG: Professor " + nome + " criado com sucesso. Persistindo entidade.");
 
-            return professorRepository.save(novoProfessor);
+            Professor professorSalvoShard1 = professorRepositoryShard1.save(novoProfessor);
+            Professor professorSalvoShard2 = professorRepositoryShard2.save(novoProfessor);
+            
+            int shardCorreto = shardRoutingService.determinarShardPorId(professorSalvoShard1.getId());
+            
+            if (shardCorreto == 1) {
+                professorRepositoryShard2.delete(professorSalvoShard2);
+                return professorSalvoShard1;
+            } else {
+                professorRepositoryShard1.delete(professorSalvoShard1);
+                return professorSalvoShard2;
+            }
 
         } catch (ValidacaoException e) {
             throw e;
@@ -99,59 +92,62 @@ public class ProfessorService {
     }
 
     public Professor findByUserId(Long userId) {
-        return professorRepository.findByUserId(userId)
+        return professorRepositoryShard1.findByUserId(userId)
+                .or(() -> professorRepositoryShard2.findByUserId(userId))
                 .orElseThrow(() -> new RecursoNaoEncontrado("Professor não encontrado para o User ID: " + userId));
     }
 
-    public Professor salvar(Professor professor) {
-        return professorRepository.save(professor);
-    }
 
-    @Transactional
-    public Professor salvar(ProfessorRequestDTO dto) {
-        return solicitarCadastroProfessor(
-                dto.getNome(),
-                dto.getEmail(),
-                dto.getTelefone(),
-                dto.getSenha(),
-                null
-        );
-    }
-
+    
     public List<Professor> listar() {
-        return professorRepository.findAll();
+        List<Professor> todosProfessores = new java.util.ArrayList<>();
+        todosProfessores.addAll(professorRepositoryShard1.findAll());
+        todosProfessores.addAll(professorRepositoryShard2.findAll());
+        
+        return todosProfessores.stream()
+                .collect(java.util.stream.Collectors.toMap(
+                    Professor::getId, 
+                    professor -> professor, 
+                    (existing, replacement) -> existing))
+                .values()
+                .stream()
+                .toList();
     }
 
     public Professor buscarPorId(Long id) {
-        return professorRepository.findById(id)
+        return professorRepositoryShard1.findById(id)
+                .or(() -> professorRepositoryShard2.findById(id))
                 .orElseThrow(() -> new RecursoNaoEncontrado("Professor não encontrado com ID: " + id));
     }
 
     public Professor buscarPorEmail(String email) {
-        return professorRepository.findByUserEmail(email)
+        return professorRepositoryShard1.findByUserEmail(email)
+                .or(() -> professorRepositoryShard2.findByUserEmail(email))
                 .orElseThrow(() -> new RecursoNaoEncontrado("Professor não encontrado com email: " + email));
     }
 
-    public Professor atualizar(Long id, Professor professorDados) {
-        Professor professorExistente = buscarPorId(id);
-        professorExistente.setNome(professorDados.getNome());
-
-        return professorRepository.save(professorExistente);
-    }
-
+    
     @Transactional
     public void deletar(Long id) {
-        professorRepository.deleteById(id);
+        Professor professor = buscarPorId(id);
+        int shard = shardRoutingService.determinarShardPorId(professor.getId());
+        
+        if (shard == 1) {
+            professorRepositoryShard1.deleteById(id);
+        } else {
+            professorRepositoryShard2.deleteById(id);
+        }
     }
 
     @Transactional
     public Professor atualizarPerfil(Long professorId, String nome, String telefone, String email) {
-        Professor professor = professorRepository.findById(professorId)
+        Professor professor = professorRepositoryShard1.findById(professorId)
+                .or(() -> professorRepositoryShard2.findById(professorId))
                 .orElseThrow(() -> new RecursoNaoEncontrado("Professor não encontrado para o ID: " + professorId));
 
 
         if (nome != null && !nome.isEmpty()) {
-            validarNome(nome);
+            validationService.validarNomeProfessor(nome);
             professor.setNome(nome);
         }
 
@@ -168,13 +164,20 @@ public class ProfessorService {
                 throw new ValidacaoException("O novo e-mail já está em uso por outro usuário.");
             }
 
-            validarDominioEmail(email);
+            validationService.validarDominioEmail(email);
 
             user.setEmail(email);
 
             userService.salvar(user);
         }
 
-        return professorRepository.save(professor);
+        // Determina qual shard o professor está baseado no ID atual
+        int shard = shardRoutingService.determinarShardPorId(professor.getId());
+        
+        if (shard == 1) {
+            return professorRepositoryShard1.save(professor);
+        } else {
+            return professorRepositoryShard2.save(professor);
+        }
     }
 }

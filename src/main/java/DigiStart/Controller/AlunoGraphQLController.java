@@ -53,7 +53,12 @@ public class AlunoGraphQLController {
 
     @MutationMapping
     public AlunoResponseDTO cadastrarAluno(@Argument @Valid AlunoRequestDTO input) {
-        var aluno = alunoService.salvar(input);
+        var aluno = alunoService.cadastrarAluno(
+            input.getEmail(),
+            input.getSenha(),
+            input.getNickname(),
+            java.time.LocalDate.parse(input.getDataNascimento(), java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+        );
         return alunoMapper.toResponseDTO(aluno);
     }
 

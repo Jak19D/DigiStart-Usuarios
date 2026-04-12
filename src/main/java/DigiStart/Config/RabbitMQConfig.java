@@ -11,7 +11,6 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class RabbitMQConfig {
 
-    // Constantes para as filas e exchanges
     public static final String USER_QUEUE = "user.queue";
     public static final String USER_EXCHANGE = "user.exchange";
     public static final String USER_ROUTING_KEY = "user.created";

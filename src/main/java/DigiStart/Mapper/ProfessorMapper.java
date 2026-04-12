@@ -12,5 +12,6 @@ public interface ProfessorMapper {
 
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "user", ignore = true)
+    @Mapping(target = "curriculoPath", ignore = true)
     Professor toEntity(ProfessorRequestDTO dto);
 }

@@ -45,7 +45,13 @@ public class ProfessorGraphQLController {
 
     @MutationMapping
     public ProfessorResponseDTO cadastrarProfessor(@Argument @Valid ProfessorRequestDTO input) {
-        var professor = professorService.salvar(input);
+        var professor = professorService.solicitarCadastroProfessor(
+            input.getNome(),
+            input.getEmail(),
+            input.getTelefone(),
+            input.getSenha(),
+            null
+        );
         return professorMapper.toResponseDTO(professor);
     }
 

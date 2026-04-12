@@ -78,11 +78,9 @@ public class User implements UserDetails {
 
     @Override
     public String getUsername() {
-        // Login é sempre por email (RF003)
         return this.email;
     }
 
-    // ... (Os demais métodos isAccountNonExpired, isAccountNonLocked, etc., permanecem iguais e corretos)
     @Override
     public boolean isAccountNonExpired() {
         return true;

@@ -94,7 +94,6 @@ public class JwtConfig extends OncePerRequestFilter {
         return (extractedUsername.equals(username) && !isTokenExpired(token));
     }
 
-    // Método do filtro para autenticação JWT
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {

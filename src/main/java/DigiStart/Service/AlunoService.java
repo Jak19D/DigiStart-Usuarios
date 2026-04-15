@@ -116,17 +116,12 @@ public class AlunoService {
 
         Aluno novoAluno = new Aluno(userSalvo, nickname, dataNascimento);
 
-        Aluno alunoSalvoShard1 = alunoRepositoryShard1.save(novoAluno);
-        Aluno alunoSalvoShard2 = alunoRepositoryShard2.save(novoAluno);
-        
-        int shardCorreto = shardRoutingService.determinarShardPorId(alunoSalvoShard1.getId());
+        int shardCorreto = shardRoutingService.determinarShardPorId(userSalvo.getId());
         
         if (shardCorreto == 1) {
-            alunoRepositoryShard2.delete(alunoSalvoShard2);
-            return alunoSalvoShard1;
+            return alunoRepositoryShard1.save(novoAluno);
         } else {
-            alunoRepositoryShard1.delete(alunoSalvoShard1);
-            return alunoSalvoShard2;
+            return alunoRepositoryShard2.save(novoAluno);
         }
     }
 

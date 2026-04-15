@@ -105,19 +105,11 @@ public class UserService implements UserDetailsService {
     @Transactional
     public User salvar(User user) {
         if (user.getId() == null) {
+            JdbcTemplate targetShard = getShardForNewUser(user.getEmail());
             String sql = "INSERT INTO tb_user (nome, email, senha, tipo, ativo) VALUES (?, ?, ?, ?, ?) RETURNING id";
-            Long id = getShardForNewUser(user.getEmail()).queryForObject(sql, Long.class,
+            Long id = targetShard.queryForObject(sql, Long.class,
                     user.getNome(), user.getEmail(), user.getSenha(), user.getTipo(), user.isAtivo());
             user.setId(id);
-            
-            if (id % 2 != 0) {
-                String deleteSql = "DELETE FROM tb_user WHERE id = ?";
-                getShardForId(id).update(deleteSql, id);
-                
-                String insertSql = "INSERT INTO tb_user (id, nome, email, senha, tipo, ativo) VALUES (?, ?, ?, ?, ?, ?)";
-                getShardForId(id).update(insertSql, id, user.getNome(), user.getEmail(), 
-                        user.getSenha(), user.getTipo(), user.isAtivo());
-            }
         } else {
             String sql = "UPDATE tb_user SET nome = ?, email = ?, senha = ?, tipo = ?, ativo = ? WHERE id = ?";
             getShardForId(user.getId()).update(sql, user.getNome(), user.getEmail(), 

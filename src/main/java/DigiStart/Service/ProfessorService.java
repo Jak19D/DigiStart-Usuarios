@@ -70,17 +70,12 @@ public class ProfessorService {
 
             System.out.println("LOG: Professor " + nome + " criado com sucesso. Persistindo entidade.");
 
-            Professor professorSalvoShard1 = professorRepositoryShard1.save(novoProfessor);
-            Professor professorSalvoShard2 = professorRepositoryShard2.save(novoProfessor);
-            
-            int shardCorreto = shardRoutingService.determinarShardPorId(professorSalvoShard1.getId());
+            int shardCorreto = shardRoutingService.determinarShardPorId(userSalvo.getId());
             
             if (shardCorreto == 1) {
-                professorRepositoryShard2.delete(professorSalvoShard2);
-                return professorSalvoShard1;
+                return professorRepositoryShard1.save(novoProfessor);
             } else {
-                professorRepositoryShard1.delete(professorSalvoShard1);
-                return professorSalvoShard2;
+                return professorRepositoryShard2.save(novoProfessor);
             }
 
         } catch (ValidacaoException e) {

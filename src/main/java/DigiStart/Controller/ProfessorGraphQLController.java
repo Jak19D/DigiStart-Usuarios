@@ -49,8 +49,7 @@ public class ProfessorGraphQLController {
             input.getNome(),
             input.getEmail(),
             input.getTelefone(),
-            input.getSenha(),
-            null
+            input.getSenha()
         );
         return professorMapper.toResponseDTO(professor);
     }

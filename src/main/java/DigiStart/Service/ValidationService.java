@@ -79,15 +79,17 @@ public class ValidationService {
     }
 
     public void validarECaminhoCurriculo(org.springframework.web.multipart.MultipartFile curriculo) {
-        if (curriculo == null || curriculo.isEmpty()) {
-            throw new ValidacaoException("O currículo em PDF é obrigatório.");
-        }
-        if (!"application/pdf".equals(curriculo.getContentType())) {
-            throw new ValidacaoException("Só são aceitos arquivos no formato PDF.");
+        if (curriculo != null && !curriculo.isEmpty()) {
+            if (!"application/pdf".equals(curriculo.getContentType())) {
+                throw new ValidacaoException("Só são aceitos arquivos no formato PDF.");
+            }
         }
     }
 
     public String getCaminhoCurriculo(org.springframework.web.multipart.MultipartFile curriculo) {
+        if (curriculo == null || curriculo.isEmpty()) {
+            return null;
+        }
         return "/storage/curriculos/" + curriculo.getOriginalFilename();
     }
 }

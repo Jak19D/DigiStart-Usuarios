@@ -22,6 +22,7 @@ public class Professor {
 
     private String telefone;
 
+    @Column(name = "curriculo_path")
     private String curriculoPath;
 
 

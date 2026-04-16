@@ -11,7 +11,6 @@ import DigiStart.Repository.ProfessorRepositoryShard2;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
 import java.util.List;
 
 @Service
@@ -38,13 +37,11 @@ public class ProfessorService {
     }
 
 
-    @Transactional
     public Professor solicitarCadastroProfessor(
             String nome,
             String email,
             String telefone,
-            String senha,
-            MultipartFile curriculo) {
+            String senha) {
 
         if (nome == null || nome.isEmpty() || email == null || email.isEmpty() || telefone == null || telefone.isEmpty() || senha == null || senha.isEmpty()) {
             throw new ValidacaoException("Certifique-se de que todos os campos obrigatórios estejam preenchidos.");
@@ -55,8 +52,6 @@ public class ProfessorService {
             throw new ValidacaoException("Este email já está em uso.");
         }
         validationService.validarForcaSenha(senha);
-        validationService.validarECaminhoCurriculo(curriculo);
-        String caminhoCurriculo = validationService.getCaminhoCurriculo(curriculo);
 
         try {
             User novoUser = new User(nome, email, senha, "PROFESSOR");
@@ -66,23 +61,27 @@ public class ProfessorService {
             novoProfessor.setUser(userSalvo);
             novoProfessor.setNome(nome);
             novoProfessor.setTelefone(telefone);
-            novoProfessor.setCurriculoPath(caminhoCurriculo);
 
             System.out.println("LOG: Professor " + nome + " criado com sucesso. Persistindo entidade.");
 
-            int shardCorreto = shardRoutingService.determinarShardPorId(userSalvo.getId());
-            
-            if (shardCorreto == 1) {
-                return professorRepositoryShard1.save(novoProfessor);
-            } else {
-                return professorRepositoryShard2.save(novoProfessor);
-            }
+            return salvarProfessor(novoProfessor);
 
         } catch (ValidacaoException e) {
             throw e;
         } catch (Exception e) {
             e.printStackTrace();
             throw new ValidacaoException("Falha interna de persistência ao finalizar o cadastro. (Verifique o log para detalhes: " + e.getMessage() + ")");
+        }
+    }
+
+    @Transactional
+    private Professor salvarProfessor(Professor professor) {
+        int shardCorreto = shardRoutingService.determinarShardPorId(professor.getUser().getId());
+        
+        if (shardCorreto == 1) {
+            return professorRepositoryShard1.save(professor);
+        } else {
+            return professorRepositoryShard2.save(professor);
         }
     }
 

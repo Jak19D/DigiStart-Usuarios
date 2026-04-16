@@ -1,3 +1,4 @@
+
 type Query {
     buscarAlunoPorId(id: ID!): AlunoResponseDTO
     buscarAlunoPorEmail(email: String!): AlunoResponseDTO

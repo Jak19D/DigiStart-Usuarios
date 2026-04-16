@@ -1,6 +1,7 @@
 package DigiStart.Service;
 
 import DigiStart.DTO.Input.ProfessorRequestDTO;
+import DigiStart.DTO.Output.ModuloResponseDTO;
 import DigiStart.Exceptions.RecursoNaoEncontrado;
 import DigiStart.Exceptions.ValidacaoException;
 import DigiStart.Mapper.ProfessorMapper;
@@ -12,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
+import java.util.ArrayList;
 
 @Service
 public class ProfessorService {
@@ -22,18 +24,20 @@ public class ProfessorService {
     private final ShardRoutingService shardRoutingService;
     private final ValidationService validationService;
     private final ProfessorMapper professorMapper;
+    private final RabbitMQService rabbitMQService;
 
     @Autowired
     public ProfessorService(ProfessorRepositoryShard1 professorRepositoryShard1,
                           ProfessorRepositoryShard2 professorRepositoryShard2, UserService userService, 
                           ShardRoutingService shardRoutingService, ValidationService validationService,
-                          ProfessorMapper professorMapper) {
+                          ProfessorMapper professorMapper, RabbitMQService rabbitMQService) {
         this.professorRepositoryShard1 = professorRepositoryShard1;
         this.professorRepositoryShard2 = professorRepositoryShard2;
         this.userService = userService;
         this.shardRoutingService = shardRoutingService;
         this.validationService = validationService;
         this.professorMapper = professorMapper;
+        this.rabbitMQService = rabbitMQService;
     }
 
 
@@ -76,7 +80,7 @@ public class ProfessorService {
 
     @Transactional
     private Professor salvarProfessor(Professor professor) {
-        int shardCorreto = shardRoutingService.determinarShardPorId(professor.getUser().getId());
+        int shardCorreto = userService.determinarShardDoUsuario(professor.getUser().getId());
         
         if (shardCorreto == 1) {
             return professorRepositoryShard1.save(professor);
@@ -93,6 +97,7 @@ public class ProfessorService {
 
 
     
+    @Transactional
     public List<Professor> listar() {
         List<Professor> todosProfessores = new java.util.ArrayList<>();
         todosProfessores.addAll(professorRepositoryShard1.findAll());
@@ -124,7 +129,7 @@ public class ProfessorService {
     @Transactional
     public void deletar(Long id) {
         Professor professor = buscarPorId(id);
-        int shard = shardRoutingService.determinarShardPorId(professor.getId());
+        int shard = userService.determinarShardDoUsuario(professor.getUser().getId());
         
         if (shard == 1) {
             professorRepositoryShard1.deleteById(id);
@@ -165,13 +170,33 @@ public class ProfessorService {
             userService.salvar(user);
         }
 
-        // Determina qual shard o professor está baseado no ID atual
-        int shard = shardRoutingService.determinarShardPorId(professor.getId());
+        int shard = userService.determinarShardDoUsuario(professor.getUser().getId());
         
         if (shard == 1) {
             return professorRepositoryShard1.save(professor);
         } else {
             return professorRepositoryShard2.save(professor);
         }
+    }
+    
+    public void solicitarCriacaoModulo(Long professorId, String nomeModulo, String descricaoModulo) {
+        Professor professor = buscarPorId(professorId);
+        
+        rabbitMQService.sendModuleCreationMessage(professorId, nomeModulo, descricaoModulo);
+        
+        System.out.println("LOG: Solicitação de criação de módulo enviada para RabbitMQ - Professor: " +
+                          professor.getNome() + ", Módulo: " + nomeModulo + ", Descrição: " + descricaoModulo);
+    }
+    
+    public List<ModuloResponseDTO> listarModulosPorProfessor(Long professorId) {
+        Professor professor = buscarPorId(professorId);
+        
+        // Enviar solicitação para o microserviço de conteúdo
+        rabbitMQService.sendListModulesRequest(professorId);
+        
+        System.out.println("LOG: Solicitação de listagem de módulos enviada para RabbitMQ - Professor: " + 
+                          professor.getNome());
+        
+        return new ArrayList<>(); // Temporário - implementar resposta real
     }
 }

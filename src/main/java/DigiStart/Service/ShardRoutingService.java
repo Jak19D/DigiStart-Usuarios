@@ -16,13 +16,15 @@ public class ShardRoutingService {
         if (valor == null) {
             return determinarShard();
         }
-        return Math.abs(valor.hashCode()) % 2 + 1;
+        // Usando a mesma regra: hash PAR → shard 1, hash ÍMPAR → shard 2
+        int hash = valor.hashCode() & Integer.MAX_VALUE;
+        return (hash % 2 == 0) ? 1 : 2;
     }
     
     public int determinarShardPorId(Long id) {
         if (id == null) {
             return determinarShard();
         }
-        return (id % 2 == 0) ? 2 : 1;
+        return (id % 2 == 0) ? 1 : 2;
     }
 }

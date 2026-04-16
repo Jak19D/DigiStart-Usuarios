@@ -78,4 +78,46 @@ public class RabbitMQService {
             log.error("Erro ao enviar mensagem de sincronização: {}", e.getMessage());
         }
     }
+
+    // Enviar solicitação de criação de módulo com dados completos
+    public void sendModuleCreationMessage(Long professorId, String nomeModulo, String descricaoModulo) {
+        Map<String, Object> message = new HashMap<>();
+        message.put("eventType", "CREATE_MODULE");
+        message.put("professorId", professorId);
+        message.put("nome", nomeModulo);
+        message.put("descricao", descricaoModulo);
+        message.put("ativo", true);
+        message.put("timestamp", System.currentTimeMillis());
+
+        try {
+            rabbitTemplate.convertAndSend(
+                RabbitMQConfig.CONTENT_EXCHANGE,
+                "module.create",
+                message
+            );
+            log.info("Solicitação de criação de módulo enviada: professorId={}, nome={}", professorId, nomeModulo);
+        } catch (Exception e) {
+            log.error("Erro ao enviar solicitação de criação de módulo: {}", e.getMessage());
+        }
+    }
+
+    // Enviar solicitação para listar módulos de um professor
+    public void sendListModulesRequest(Long professorId) {
+        Map<String, Object> message = new HashMap<>();
+        message.put("eventType", "LIST_MODULES");
+        message.put("professorId", professorId);
+        message.put("timestamp", System.currentTimeMillis());
+        message.put("replyTo", "module.response." + professorId);
+
+        try {
+            rabbitTemplate.convertAndSend(
+                RabbitMQConfig.CONTENT_EXCHANGE,
+                "module.list",
+                message
+            );
+            log.info("Solicitação de listagem de módulos enviada: professorId={}", professorId);
+        } catch (Exception e) {
+            log.error("Erro ao enviar solicitação de listagem de módulos: {}", e.getMessage());
+        }
+    }
 }

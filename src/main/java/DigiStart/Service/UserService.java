@@ -51,12 +51,30 @@ public class UserService implements UserDetailsService {
     }
 
     private JdbcTemplate getShardForId(Long id) {
-        return (id % 2 == 0) ? shard1JdbcTemplate : shard2JdbcTemplate;
+        int shard = determinarShardDoUsuario(id);
+        return shard == 1 ? shard1JdbcTemplate : shard2JdbcTemplate;
     }
 
     private JdbcTemplate getShardForNewUser(String email) {
-        int shard = shardRoutingService.determinarShardPorHash(email);
+        // Para novos usuários, vamos usar o hash do email com a mesma regra de paridade
+        int hash = email.hashCode() & Integer.MAX_VALUE;
+        int shard = (hash % 2 == 0) ? 1 : 2;
         return shard == 1 ? shard1JdbcTemplate : shard2JdbcTemplate;
+    }
+
+    private boolean existeUsuarioNoShard(JdbcTemplate jdbcTemplate, Long userId) {
+        String sql = "SELECT COUNT(*) FROM tb_user WHERE id = ?";
+        Long count = jdbcTemplate.queryForObject(sql, Long.class, userId);
+        return count != null && count > 0;
+    }
+
+    public int determinarShardDoUsuario(Long userId) {
+        if (userId == null) {
+            throw new ValidacaoException("User ID não pode ser nulo para determinar shard.");
+        }
+
+        // Regra simples e consistente: ID PAR → shard 1, ID ÍMPAR → shard 2
+        return (userId % 2 == 0) ? 1 : 2;
     }
 
     private RowMapper<User> userRowMapper = (rs, rowNum) -> {

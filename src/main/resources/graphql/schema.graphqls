@@ -9,11 +9,7 @@ type Query {
     buscarProfessorPorEmail(email: String!): ProfessorResponseDTO
     listarProfessores: [ProfessorResponseDTO]
 
-    listarModulos: [ModuloResponseDTO]
-    buscarModuloPorId(id: ID!): ModuloResponseDTO
-    listarAulasPorModulo(moduloId: ID!): [AulaResponseDTO]
-    listarAulas: [AulaResponseDTO]
-    listarExerciciosPorAula(aulaId: ID!): [ExercicioResponseDTO]
+    listarModulosPorProfessor(professorId: ID!): [ModuloResponseDTO]
 
     buscarUserPorId(id: ID!): UserResponseDTO
     buscarUserPorEmail(email: String!): UserResponseDTO
@@ -30,13 +26,7 @@ type Mutation {
     editarProfessor(id: ID!, nome: String, telefone: String, email: String): ProfessorResponseDTO
     deletarProfessor(id: ID!): Boolean
 
-    criarModulo(input: ModuloRequestDTO!, professorId: ID!): ModuloResponseDTO
-    editarModulo(id: ID!, input: ModuloRequestDTO!): ModuloResponseDTO
-    deletarModulo(moduloId: ID!, professorId: ID!): Boolean
-
-    adicionarAula(input: AulaRequestDTO!): AulaResponseDTO
-    editarAula(id: ID!, input: AulaRequestDTO!, professorId: ID!): AulaResponseDTO
-    deletarAula(id: ID!): Boolean
+    solicitarCriacaoModulo(professorId: ID!, nomeModulo: String!, descricaoModulo: String): Boolean
 
     criarUser(input: UserRequestDTO!): UserResponseDTO
     editarUser(id: ID!, input: UserRequestDTO!): UserResponseDTO
@@ -58,7 +48,6 @@ type AlunoResponseDTO {
     nickname: String
     dataNascimento: String!
     user: UserResponseDTO
-    moduloAtual: ModuloResponseDTO
 }
 
 type ProfessorResponseDTO {
@@ -73,25 +62,9 @@ type ModuloResponseDTO {
     nome: String
     descricao: String
     ativo: Boolean
+    professorId: ID
     nomeProfessor: String
-    aulas: [AulaResponseDTO]
 }
-
-type AulaResponseDTO {
-    id: ID
-    titulo: String
-    descricao: String
-    ordem: Int
-    ativo: Boolean
-    moduloId: ID
-}
-
-type ExercicioResponseDTO {
-    id: ID
-    titulo: String
-    descricao: String
-}
-
 
 input AlunoRequestDTO {
     nome: String!
@@ -108,19 +81,6 @@ input ProfessorRequestDTO {
     telefone: String!
 }
 
-input ModuloRequestDTO {
-    nome: String!
-    descricao: String
-    ativo: Boolean
-}
-
-input AulaRequestDTO {
-    titulo: String!
-    descricao: String!
-    ordem: Int!
-    moduloId: ID!
-    ativo: Boolean
-}
 
 input UserRequestDTO {
     nome: String!

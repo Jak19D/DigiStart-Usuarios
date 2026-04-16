@@ -116,7 +116,7 @@ public class AlunoService {
 
         Aluno novoAluno = new Aluno(userSalvo, nickname, dataNascimento);
 
-        int shardCorreto = shardRoutingService.determinarShardPorId(userSalvo.getId());
+        int shardCorreto = userService.determinarShardDoUsuario(userSalvo.getId());
         
         if (shardCorreto == 1) {
             return alunoRepositoryShard1.save(novoAluno);
@@ -129,7 +129,7 @@ public class AlunoService {
     @Transactional
     public void deletar(Long id) {
         Aluno aluno = buscarPorId(id);
-        int shard = shardRoutingService.determinarShardPorId(aluno.getId());
+        int shard = userService.determinarShardDoUsuario(aluno.getUser().getId());
         
         if (shard == 1) {
             alunoRepositoryShard1.delete(aluno);
@@ -190,7 +190,7 @@ public class AlunoService {
 
         userService.salvar(user);
         
-        int shard = shardRoutingService.determinarShardPorId(aluno.getId());
+        int shard = userService.determinarShardDoUsuario(aluno.getUser().getId());
         
         if (shard == 1) {
             return alunoRepositoryShard1.save(aluno);

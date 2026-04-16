@@ -1,4 +1,4 @@
-CREATE TABLE professores (
+CREATE TABLE IF NOT EXISTS professores (
     id BIGSERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL UNIQUE,
     nome VARCHAR(150) NOT NULL,
@@ -7,5 +7,5 @@ CREATE TABLE professores (
     FOREIGN KEY (user_id) REFERENCES tb_user(id)
 );
 
-CREATE INDEX idx_professores_user_id ON professores(user_id);
-CREATE INDEX idx_professores_nome ON professores(nome);
+CREATE INDEX IF NOT EXISTS idx_professores_user_id ON professores(user_id);
+CREATE INDEX IF NOT EXISTS idx_professores_nome ON professores(nome);

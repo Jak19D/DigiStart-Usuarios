@@ -47,7 +47,6 @@ public class AlunoService {
         todosAlunos.addAll(alunoRepositoryShard1.findAll());
         todosAlunos.addAll(alunoRepositoryShard2.findAll());
         
-        // Remover duplicados baseado no ID
         return todosAlunos.stream()
                 .collect(java.util.stream.Collectors.toMap(
                     Aluno::getId, 
@@ -63,7 +62,6 @@ public class AlunoService {
         alunos.addAll(alunoRepositoryShard1.buscarPorNomeOuEmail(nome));
         alunos.addAll(alunoRepositoryShard2.buscarPorNomeOuEmail(nome));
         
-        // Remover duplicados baseado no ID
         return alunos.stream()
                 .collect(java.util.stream.Collectors.toMap(
                     Aluno::getId, 

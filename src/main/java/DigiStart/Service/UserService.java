@@ -56,7 +56,6 @@ public class UserService implements UserDetailsService {
     }
 
     private JdbcTemplate getShardForNewUser(String email) {
-        // Para novos usuários, vamos usar o hash do email com a mesma regra de paridade
         int hash = email.hashCode() & Integer.MAX_VALUE;
         int shard = (hash % 2 == 0) ? 1 : 2;
         return shard == 1 ? shard1JdbcTemplate : shard2JdbcTemplate;
@@ -73,7 +72,6 @@ public class UserService implements UserDetailsService {
             throw new ValidacaoException("User ID não pode ser nulo para determinar shard.");
         }
 
-        // Regra simples e consistente: ID PAR → shard 1, ID ÍMPAR → shard 2
         return (userId % 2 == 0) ? 1 : 2;
     }
 

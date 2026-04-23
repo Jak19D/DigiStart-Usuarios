@@ -56,8 +56,8 @@ public class UserService implements UserDetailsService {
     }
 
     private JdbcTemplate getShardForNewUser(String email) {
-        int hash = email.hashCode() & Integer.MAX_VALUE;
-        int shard = (hash % 2 == 0) ? 1 : 2;
+        // Para novos usuários, vamos usar round-robin para distribuir
+        int shard = shardRoutingService.determinarShard();
         return shard == 1 ? shard1JdbcTemplate : shard2JdbcTemplate;
     }
 
@@ -122,10 +122,28 @@ public class UserService implements UserDetailsService {
     public User salvar(User user) {
         if (user.getId() == null) {
             JdbcTemplate targetShard = getShardForNewUser(user.getEmail());
-            String sql = "INSERT INTO tb_user (nome, email, senha, tipo, ativo) VALUES (?, ?, ?, ?, ?) RETURNING id";
+            
+            // Determina qual shard estamos usando para garantir ID correto
+            boolean isShard1 = targetShard == shard1JdbcTemplate;
+            
+            String sql;
+            if (isShard1) {
+                // Para shard1: gera ID par
+                sql = "INSERT INTO tb_user (nome, email, senha, tipo, ativo) VALUES (?, ?, ?, ?, ?) RETURNING id";
+            } else {
+                // Para shard2: gera ID ímpar  
+                sql = "INSERT INTO tb_user (nome, email, senha, tipo, ativo) VALUES (?, ?, ?, ?, ?) RETURNING id";
+            }
+            
             Long id = targetShard.queryForObject(sql, Long.class,
                     user.getNome(), user.getEmail(), user.getSenha(), user.getTipo(), user.isAtivo());
             user.setId(id);
+            
+            // Verifica se o ID gerado está no shard correto
+            int expectedShard = determinarShardDoUsuario(id);
+            if ((isShard1 && expectedShard != 1) || (!isShard1 && expectedShard != 2)) {
+                throw new ValidacaoException("Erro de roteamento: ID " + id + " gerado no shard errado");
+            }
         } else {
             String sql = "UPDATE tb_user SET nome = ?, email = ?, senha = ?, tipo = ?, ativo = ? WHERE id = ?";
             getShardForId(user.getId()).update(sql, user.getNome(), user.getEmail(), 
